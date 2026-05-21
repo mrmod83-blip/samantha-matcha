@@ -30,7 +30,7 @@ import type { Product } from '@/data/products'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SUPPORTED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp'])
+const SUPPORTED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.avif'])
 const PUBLIC_DIR = path.join(process.cwd(), 'public')
 const PRODUCTS_DIR = path.join(PUBLIC_DIR, 'products')
 
@@ -123,7 +123,22 @@ export function scanProductImages(): ScanReport {
   const imageMap: ImageMap = {}
   const usedUrls = new Set<string>()
 
+  // Build a publicUrl → entry map for direct path matching (Strategy 0)
+  const byPublicUrl = new Map<string, FileEntry>()
+  for (const entry of allEntries) {
+    byPublicUrl.set(entry.publicUrl, entry)
+  }
+
   for (const product of products) {
+    // Strategy 0 — exact public URL derived from product.image field
+    //   product.image: "/products/hoshinoen/hoju-20g.png" → match directly
+    const directEntry = byPublicUrl.get(product.image)
+    if (directEntry) {
+      imageMap[product.id] = directEntry.publicUrl
+      usedUrls.add(directEntry.publicUrl)
+      continue
+    }
+
     // Primary key: basename of product.image field (without extension)
     const primary = path
       .basename(product.image, path.extname(product.image))
@@ -131,7 +146,7 @@ export function scanProductImages(): ScanReport {
     // Secondary key: product.id
     const secondary = product.id.toLowerCase()
 
-    // Try flatStem first (most specific), then bare stem
+    // Strategy 1/2 — flatStem (brand-dir + filename), then Strategy 3 — bare stem
     const match =
       byFlat.get(primary) ??
       byFlat.get(secondary) ??

@@ -11,11 +11,11 @@ type ActiveBrand = Brand | 'all'
 // ─── Brand short labels ────────────────────────────────────────────────────
 
 const brandShortLabel: Record<Brand, string> = {
-  'Hoshino Seichaen':  'Hoshino',
-  'Marukyu Koyamaen':  'Marukyu',
+  'Hoshinoen':         'Hoshinoen',
   'Yamamasa Koyamaen': 'Yamamasa',
   'Aoiseicha':         'Aoiseicha',
-  'Ochamura':          'Ochamura',
+  'Ippodo':            'Ippodo',
+  'Horii':             'Horii',
 }
 
 // ─── Icons (inline SVG — not images) ──────────────────────────────────────
