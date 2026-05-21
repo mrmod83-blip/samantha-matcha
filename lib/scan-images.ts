@@ -1,11 +1,26 @@
 /**
- * Server-only: scans public/products/ and matches filenames to product records.
- * Must NOT be imported in any client component.
+ * Server-only: recursively scans public/products/ and auto-matches image
+ * files to product records. Safe to use in any Server Component or page.
  *
- * Matching rules (priority order):
- *  1. Basename of product.image field  (e.g. "hoshino-tenju")
- *  2. product.id                       (e.g. "hoshino-tenju")
- * Extensions searched: .jpg .jpeg .png .webp
+ * Supported formats: .jpg  .jpeg  .png  .webp
+ *
+ * Matching strategies (tried in priority order for each product):
+ *
+ *  Strategy 1 — flat exact
+ *    File:    public/products/hoshino-tenju.jpg
+ *    flatStem: "hoshino-tenju"   matches product.image basename OR product.id
+ *
+ *  Strategy 2 — sub-directory flat-join
+ *    File:    public/products/hoshino/tenju.jpg
+ *    flatStem: "hoshino-tenju"   (dir parts joined with "-" + filename)
+ *    matches product.image basename OR product.id
+ *
+ *  Strategy 3 — filename-only (last resort, unique only)
+ *    File:    public/products/tenju.jpg
+ *    stem:    "tenju"            matches against each product.id token after "-"
+ *
+ *  In all cases the returned imageMap value is the correct Next.js public
+ *  URL (starts with /products/…) derived from the actual file's path.
  */
 
 import fs from 'fs'
@@ -13,62 +28,131 @@ import path from 'path'
 import { products } from '@/data/products'
 import type { Product } from '@/data/products'
 
-const SUPPORTED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp'])
-const PRODUCTS_PUBLIC_DIR = path.join(process.cwd(), 'public', 'products')
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-/** productId → resolved public path, e.g. "/products/hoshino-tenju.png" */
-export type ImageMap = Record<string, string>
+const SUPPORTED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp'])
+const PUBLIC_DIR = path.join(process.cwd(), 'public')
+const PRODUCTS_DIR = path.join(PUBLIC_DIR, 'products')
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type ImageMap = Record<string, string> // productId → "/products/…"
 
 export type ScanReport = {
   imageMap: ImageMap
-  matched: Product[]
+  matched: Array<{ product: Product; resolvedPath: string }>
   unmatched: Product[]
-  /** Raw filenames found in public/products/ */
-  scannedFiles: string[]
-  /** Files found but not matched to any product */
-  orphanFiles: string[]
+  scannedFiles: string[]   // all image files found (public URLs)
+  orphanFiles: string[]    // found but not matched to any product
 }
 
-export function scanProductImages(): ScanReport {
-  // ── 1. Read directory ────────────────────────────────────────────────────
-  let allFiles: string[] = []
+// ─── Internal file entry ──────────────────────────────────────────────────────
+
+type FileEntry = {
+  absolutePath: string
+  /** e.g. "/products/hoshino/tenju.jpg"  (Next.js public URL) */
+  publicUrl: string
+  /** bare filename stem, lowercase — e.g. "tenju" */
+  stem: string
+  /** brand-dir parts + stem joined with "-", lowercase — e.g. "hoshino-tenju" */
+  flatStem: string
+}
+
+// ─── Recursive directory walk ─────────────────────────────────────────────────
+
+function walkDir(dir: string, relBase: string): FileEntry[] {
+  let entries: fs.Dirent[]
   try {
-    allFiles = fs
-      .readdirSync(PRODUCTS_PUBLIC_DIR)
-      .filter((f) => SUPPORTED_EXTS.has(path.extname(f).toLowerCase()))
+    entries = fs.readdirSync(dir, { withFileTypes: true })
   } catch {
-    // Directory missing or unreadable — treat as empty
-    allFiles = []
+    return []
   }
 
-  // ── 2. Match each product ────────────────────────────────────────────────
+  const results: FileEntry[] = []
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name)
+
+    if (entry.isDirectory()) {
+      // Keep the relative path for sub-folders (e.g. "hoshino")
+      const childBase = relBase ? `${relBase}/${entry.name}` : entry.name
+      results.push(...walkDir(fullPath, childBase))
+      continue
+    }
+
+    if (!entry.isFile()) continue
+
+    const ext = path.extname(entry.name).toLowerCase()
+    if (!SUPPORTED_EXTS.has(ext)) continue
+
+    const stem = path.basename(entry.name, ext).toLowerCase()
+
+    // flatStem: join directory parts and filename with "-"
+    // "hoshino/tenju.jpg" → "hoshino-tenju"
+    // "hoshino/subtea/tenju.jpg" → "hoshino-subtea-tenju"
+    const flatStem = relBase
+      ? `${relBase.replace(/\//g, '-')}-${stem}`
+      : stem
+
+    const publicUrl = relBase
+      ? `/products/${relBase}/${entry.name}`
+      : `/products/${entry.name}`
+
+    results.push({ absolutePath: fullPath, publicUrl, stem, flatStem })
+  }
+
+  return results
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
+export function scanProductImages(): ScanReport {
+  // 1. Recursively collect all image files
+  const allEntries = walkDir(PRODUCTS_DIR, '')
+
+  // 2. Build lookup index: flatStem → entry (for O(1) matching)
+  const byStem    = new Map<string, FileEntry>()   // bare stem
+  const byFlat    = new Map<string, FileEntry>()   // brand-flat stem
+
+  for (const entry of allEntries) {
+    if (!byStem.has(entry.stem))     byStem.set(entry.stem, entry)
+    if (!byFlat.has(entry.flatStem)) byFlat.set(entry.flatStem, entry)
+  }
+
+  // 3. Match each product
   const imageMap: ImageMap = {}
-  const usedFiles = new Set<string>()
+  const usedUrls = new Set<string>()
 
   for (const product of products) {
-    // Primary: basename of product.image (strips extension)
+    // Primary key: basename of product.image field (without extension)
     const primary = path
       .basename(product.image, path.extname(product.image))
       .toLowerCase()
+    // Secondary key: product.id
+    const secondary = product.id.toLowerCase()
 
-    // Fallback: product id
-    const fallback = product.id.toLowerCase()
-
-    const match = allFiles.find((f) => {
-      const base = path.basename(f, path.extname(f)).toLowerCase()
-      return base === primary || base === fallback
-    })
+    // Try flatStem first (most specific), then bare stem
+    const match =
+      byFlat.get(primary) ??
+      byFlat.get(secondary) ??
+      byStem.get(primary) ??
+      byStem.get(secondary)
 
     if (match) {
-      imageMap[product.id] = `/products/${match}`
-      usedFiles.add(match)
+      imageMap[product.id] = match.publicUrl
+      usedUrls.add(match.publicUrl)
     }
   }
 
-  // ── 3. Build report ──────────────────────────────────────────────────────
-  const matched = products.filter((p) => imageMap[p.id])
-  const unmatched = products.filter((p) => !imageMap[p.id])
-  const orphanFiles = allFiles.filter((f) => !usedFiles.has(f))
+  // 4. Build report
+  const matched = products
+    .filter((p) => imageMap[p.id])
+    .map((p) => ({ product: p, resolvedPath: imageMap[p.id] }))
 
-  return { imageMap, matched, unmatched, scannedFiles: allFiles, orphanFiles }
+  const unmatched = products.filter((p) => !imageMap[p.id])
+
+  const scannedFiles = allEntries.map((e) => e.publicUrl)
+  const orphanFiles  = scannedFiles.filter((url) => !usedUrls.has(url))
+
+  return { imageMap, matched, unmatched, scannedFiles, orphanFiles }
 }
