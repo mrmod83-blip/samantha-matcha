@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import ProductCatalog from '@/components/ProductCatalog'
+import { scanProductImages } from '@/lib/scan-images'
 
 export const metadata: Metadata = {
   title: 'Shop',
@@ -8,15 +9,19 @@ export const metadata: Metadata = {
 }
 
 export default function ShopPage() {
+  const { imageMap } = scanProductImages()
+
   return (
     <div className="min-h-screen bg-cream-50">
       {/* Page header */}
       <div className="bg-matcha-900 text-white py-14 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <p className="text-xs font-semibold tracking-widest uppercase text-gold-400 mb-3">
+          <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-gold-400 mb-3">
             Samantha Matcha Shop
           </p>
-          <h1 className="text-3xl sm:text-4xl font-bold mb-3">ร้านมัทฉะพรีเมียม</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-3">
+            ร้านมัทฉะพรีเมียม
+          </h1>
           <p className="text-matcha-300 text-sm max-w-xl leading-relaxed">
             คัดสรรมัทฉะจากไร่ชาชั้นนำของญี่ปุ่น ทั้ง Yame, Uji และ Nishio
             ส่งตรงถึงมือคุณทั่วประเทศไทย
@@ -25,7 +30,7 @@ export default function ShopPage() {
       </div>
 
       {/* Catalog with filter + search */}
-      <ProductCatalog />
+      <ProductCatalog imageMap={imageMap} />
 
       {/* Bottom CTA */}
       <div className="px-4 sm:px-6 lg:px-8 pb-16">

@@ -6,106 +6,131 @@ import { useState } from 'react'
 import type { Product, Grade, StockStatus } from '@/data/products'
 import { stockLabel } from '@/data/products'
 
-// ─── Grade badge styling ───────────────────────────────────────────────────
+// ─── Grade styling ────────────────────────────────────────────────────────
 
 const gradeBadgeClass: Record<Grade, string> = {
   Ceremonial:
-    'border border-gold-500 text-gold-600 bg-gold-400/10 font-semibold tracking-wide',
+    'bg-gold-400/15 border border-gold-500/60 text-gold-600 font-semibold tracking-wider',
   Superior:
-    'border border-matcha-600 text-matcha-700 bg-matcha-50',
+    'bg-matcha-700/10 border border-matcha-600/40 text-matcha-700 tracking-wide',
   Premium:
-    'border border-matcha-300 text-matcha-600 bg-matcha-50',
+    'bg-matcha-100 border border-matcha-200 text-matcha-600',
   Standard:
-    'border border-cream-300 text-matcha-500 bg-cream-100',
+    'bg-cream-200 border border-cream-300 text-matcha-500',
 }
 
 // ─── Stock indicator ───────────────────────────────────────────────────────
 
-const stockDotClass: Record<StockStatus, string> = {
-  in_stock: 'bg-matcha-500',
-  low_stock: 'bg-amber-400',
-  out_of_stock: 'bg-stone-400',
+const stockStyles: Record<StockStatus, { dot: string; text: string }> = {
+  in_stock:    { dot: 'bg-matcha-500', text: 'text-matcha-600' },
+  low_stock:   { dot: 'bg-amber-400',  text: 'text-amber-600'  },
+  out_of_stock:{ dot: 'bg-stone-400',  text: 'text-stone-400'  },
 }
 
-const stockTextClass: Record<StockStatus, string> = {
-  in_stock: 'text-matcha-600',
-  low_stock: 'text-amber-600',
-  out_of_stock: 'text-stone-400',
-}
+// ─── Placeholder (no SVG, pure CSS + text) ─────────────────────────────────
 
-// ─── Image placeholder ─────────────────────────────────────────────────────
-
-function ProductPlaceholder({ name }: { name: string }) {
+function ProductImagePlaceholder({ japaneseName }: { japaneseName: string }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-matcha-100 via-cream-100 to-cream-200">
-      {/* Decorative Japanese character */}
+    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-matcha-100 via-cream-100 to-cream-200 select-none">
+      {/* Decorative large kanji */}
       <span
-        className="text-7xl font-thin text-matcha-300 select-none leading-none mb-3"
+        className="text-8xl font-thin text-matcha-300/60 leading-none mb-3 tracking-tighter"
         aria-hidden="true"
+        lang="ja"
       >
         抹
       </span>
-      <p className="text-xs text-matcha-400 px-4 text-center leading-relaxed">
+      <p className="text-[11px] text-matcha-500 text-center leading-relaxed px-4">
         รูปสินค้าจะอัปเดต
         <br />
         เร็ว ๆ นี้
       </p>
-      {/* Subtle brand watermark */}
-      <p className="absolute bottom-3 text-[10px] text-matcha-300 tracking-widest uppercase">
-        {name}
+      {/* Brand watermark at bottom */}
+      <p
+        className="absolute bottom-3 text-[9px] text-matcha-300 tracking-[0.2em] uppercase"
+        lang="ja"
+      >
+        {japaneseName}
       </p>
     </div>
   )
 }
 
-// ─── Main component ────────────────────────────────────────────────────────
+// ─── Props ────────────────────────────────────────────────────────────────
 
-export default function ProductCard({ product }: { product: Product }) {
+type Props = {
+  product: Product
+  /**
+   * Resolved image path from the server-side scan.
+   * - string  → file confirmed present, use next/image
+   * - null    → file confirmed absent, show placeholder
+   * - undefined → unknown (treat as absent, show placeholder)
+   */
+  resolvedImage?: string | null
+}
+
+// ─── Component ────────────────────────────────────────────────────────────
+
+export default function ProductCard({ product, resolvedImage }: Props) {
   const [imgError, setImgError] = useState(false)
 
+  const imageSrc = resolvedImage && !imgError ? resolvedImage : null
   const isOutOfStock = product.stock === 'out_of_stock'
+  const { dot: dotClass, text: textClass } = stockStyles[product.stock]
 
   return (
-    <article className="group flex flex-col bg-white rounded-2xl border border-matcha-100 overflow-hidden hover:shadow-2xl hover:shadow-matcha-800/8 hover:-translate-y-0.5 transition-all duration-300">
-      {/* ── Image / Placeholder ─────────────────────────────── */}
-      <div className="relative h-56 bg-cream-100 overflow-hidden">
-        {imgError ? (
-          <ProductPlaceholder name={product.japaneseName} />
+    <article className="group flex flex-col bg-white rounded-2xl border border-matcha-100/80 overflow-hidden shadow-sm hover:shadow-xl hover:shadow-matcha-900/8 hover:-translate-y-1 transition-all duration-300 will-change-transform">
+
+      {/* ── Image / Placeholder ─────────────────────────────────────────── */}
+      {/*
+        aspect-[4/3] prevents layout shift — the browser reserves height based
+        on width before the image loads, so there is no CLS.
+        overflow-hidden clips the scale() transform during hover zoom.
+      */}
+      <div className="relative aspect-[4/3] overflow-hidden bg-cream-100">
+        {imageSrc ? (
+          <>
+            <Image
+              src={imageSrc}
+              alt={`${product.name} — ${product.brand}`}
+              fill
+              className="object-cover object-center transition-transform duration-500 ease-out group-hover:scale-110"
+              sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1024px) calc(50vw - 2.5rem), (max-width: 1280px) calc(33vw - 2.5rem), calc(25vw - 2.5rem)"
+              priority={product.featured === true}
+              onError={() => setImgError(true)}
+            />
+            {/* Gradient overlay — improves badge readability on photos */}
+            <div className="absolute inset-0 bg-gradient-to-t from-matcha-900/30 via-transparent to-transparent pointer-events-none" />
+          </>
         ) : (
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            onError={() => setImgError(true)}
-          />
+          <ProductImagePlaceholder japaneseName={product.japaneseName} />
         )}
 
-        {/* Featured ribbon */}
+        {/* Featured badge */}
         {product.featured && (
-          <span className="absolute top-3 left-3 text-[10px] font-semibold tracking-widest uppercase px-2.5 py-1 bg-matcha-800/90 text-cream-100 rounded-full backdrop-blur-sm">
+          <span className="absolute top-3 left-3 z-10 text-[10px] font-semibold tracking-widest uppercase px-2.5 py-1 bg-matcha-900/80 text-cream-100 rounded-full backdrop-blur-sm">
             Featured
           </span>
         )}
 
-        {/* Grade badge — overlaps image bottom */}
+        {/* Grade badge — sits on the image bottom edge */}
         <span
-          className={`absolute bottom-3 right-3 text-[10px] px-2.5 py-0.5 rounded-full ${gradeBadgeClass[product.grade]} backdrop-blur-sm`}
+          className={`absolute bottom-3 right-3 z-10 text-[10px] px-2.5 py-0.5 rounded-full backdrop-blur-sm ${gradeBadgeClass[product.grade]}`}
         >
           {product.grade}
         </span>
       </div>
 
-      {/* ── Card Body ───────────────────────────────────────── */}
+      {/* ── Card body ──────────────────────────────────────────────────── */}
       <div className="flex flex-col flex-1 p-5">
+
         {/* Brand */}
-        <p className="text-[10px] font-semibold tracking-widest uppercase text-gold-600 mb-1">
+        <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-gold-600 mb-1">
           {product.brand}
         </p>
 
         {/* Name */}
-        <h3 className="font-bold text-matcha-900 text-base leading-snug mb-0.5">
+        <h3 className="font-bold text-matcha-900 text-[15px] leading-snug mb-0.5">
           {product.name}
         </h3>
 
@@ -114,16 +139,17 @@ export default function ProductCard({ product }: { product: Product }) {
           {product.japaneseName}
         </p>
 
-        {/* Origin + Size */}
-        <div className="flex items-center gap-3 text-xs text-matcha-900/50 mb-4">
+        {/* Meta row: origin + size */}
+        <div className="flex items-center gap-2.5 text-[11px] text-matcha-900/45 mb-4 flex-wrap">
           <span className="flex items-center gap-1">
+            {/* Pin icon — inline SVG, not a fake image */}
             <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
             {product.origin}
           </span>
-          <span className="w-px h-3 bg-matcha-200" />
+          <span className="w-px h-3 bg-matcha-200 shrink-0" />
           <span>{product.size}</span>
         </div>
 
@@ -140,37 +166,37 @@ export default function ProductCard({ product }: { product: Product }) {
         </div>
 
         {/* Description */}
-        <p className="text-xs text-matcha-900/55 leading-relaxed line-clamp-2 mb-4 flex-1">
+        <p className="text-xs text-matcha-900/50 leading-relaxed line-clamp-2 mb-5 flex-1">
           {product.description}
         </p>
 
-        {/* Price + Stock */}
+        {/* Price + stock */}
         <div className="flex items-center justify-between mb-4">
-          <span className="text-xl font-bold text-matcha-900">
+          <span className="text-xl font-bold text-matcha-900 tabular-nums">
             ฿{product.price.toLocaleString()}
           </span>
-          <span className={`flex items-center gap-1.5 text-xs font-medium ${stockTextClass[product.stock]}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${stockDotClass[product.stock]}`} />
+          <span className={`flex items-center gap-1.5 text-[11px] font-medium ${textClass}`}>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotClass}`} />
             {stockLabel[product.stock]}
           </span>
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Link
             href={`/shop/${product.id}`}
-            className="flex-1 text-center text-xs font-medium px-3 py-2.5 rounded-xl border border-matcha-200 text-matcha-700 hover:bg-matcha-50 hover:border-matcha-300 transition-colors"
+            className="text-center text-xs font-medium px-3 py-2.5 rounded-xl border border-matcha-200 text-matcha-700 hover:bg-matcha-50 hover:border-matcha-300 transition-colors"
           >
             ดูรายละเอียด
           </Link>
           <Link
             href="/contact"
-            className={`flex-1 text-center text-xs font-semibold px-3 py-2.5 rounded-xl transition-colors ${
-              isOutOfStock
-                ? 'bg-stone-100 text-stone-400 cursor-not-allowed pointer-events-none'
-                : 'bg-matcha-700 text-white hover:bg-matcha-800'
-            }`}
             aria-disabled={isOutOfStock}
+            className={`text-center text-xs font-semibold px-3 py-2.5 rounded-xl transition-colors ${
+              isOutOfStock
+                ? 'bg-stone-100 text-stone-400 pointer-events-none'
+                : 'bg-matcha-700 text-white hover:bg-matcha-800 active:bg-matcha-900'
+            }`}
           >
             สั่งซื้อ
           </Link>
