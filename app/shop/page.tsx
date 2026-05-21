@@ -1,67 +1,54 @@
 import type { Metadata } from 'next'
-import ProductCard from '@/components/ProductCard'
-import { products } from '@/lib/products'
+import ProductCatalog from '@/components/ProductCatalog'
+import { scanProductImages } from '@/lib/scan-images'
 
 export const metadata: Metadata = {
   title: 'Shop',
-  description: 'Browse all Samantha Matcha products — ceremonial grade, blends, culinary matcha, and gift sets.',
+  description:
+    'คลังมัทฉะพรีเมียม 16 รายการจาก 5 แบรนด์ชั้นนำของญี่ปุ่น — Hoshino, Marukyu, Yamamasa, Aoiseicha และ Ochamura',
 }
 
-const categories = [
-  { key: 'all', label: 'All Products' },
-  { key: 'ceremonial', label: 'Ceremonial' },
-  { key: 'blend', label: 'Blends' },
-  { key: 'culinary', label: 'Culinary' },
-  { key: 'gift', label: 'Gift Sets' },
-] as const
-
 export default function ShopPage() {
+  const { imageMap } = scanProductImages()
+
   return (
     <div className="min-h-screen bg-cream-50">
-      <div className="bg-matcha-50 border-b border-matcha-100 py-12 px-4 sm:px-6 lg:px-8">
+      {/* Page header */}
+      <div className="bg-matcha-900 text-white py-14 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl sm:text-4xl font-bold text-matcha-900 mb-2">Shop</h1>
-          <p className="text-matcha-900/60">
-            {products.length} products — premium matcha for every occasion.
+          <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-gold-400 mb-3">
+            Samantha Matcha Shop
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-3">
+            ร้านมัทฉะพรีเมียม
+          </h1>
+          <p className="text-matcha-300 text-sm max-w-xl leading-relaxed">
+            คัดสรรมัทฉะจากไร่ชาชั้นนำของญี่ปุ่น ทั้ง Yame, Uji และ Nishio
+            ส่งตรงถึงมือคุณทั่วประเทศไทย
           </p>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="flex gap-2 flex-wrap mb-10">
-          {categories.map((cat) => (
-            <span
-              key={cat.key}
-              className={`px-4 py-1.5 rounded-full text-sm cursor-default transition-colors ${
-                cat.key === 'all'
-                  ? 'bg-matcha-700 text-white'
-                  : 'border border-matcha-200 text-matcha-700 hover:bg-matcha-50'
-              }`}
+      {/* Catalog with filter + search */}
+      <ProductCatalog imageMap={imageMap} />
+
+      {/* Bottom CTA */}
+      <div className="px-4 sm:px-6 lg:px-8 pb-16">
+        <div className="max-w-7xl mx-auto">
+          <div className="rounded-2xl bg-cream-100 border border-cream-200 p-8 text-center">
+            <p className="text-matcha-900/60 text-sm mb-4">
+              สั่งซื้อผ่าน LINE ได้เลย — ส่งสลิปยืนยันการชำระเงิน แล้วรอรับของ!
+            </p>
+            <a
+              href="/contact"
+              className="inline-flex items-center gap-2 bg-matcha-700 text-white px-7 py-3 rounded-full text-sm font-medium hover:bg-matcha-800 transition-colors"
             >
-              {cat.label}
-            </span>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-
-        <div className="mt-14 rounded-2xl bg-matcha-800 text-white p-8 sm:p-10 text-center">
-          <h2 className="text-xl font-semibold mb-2">Can&apos;t decide?</h2>
-          <p className="text-matcha-300 text-sm mb-6">
-            Chat with us on LINE and we will recommend the perfect matcha for your taste.
-          </p>
-          <a
-            href="https://line.me"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-white text-matcha-800 px-6 py-2.5 rounded-full text-sm font-medium hover:bg-cream-100 transition-colors"
-          >
-            Chat on LINE
-          </a>
+              ดูช่องทางการสั่งซื้อ
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </a>
+          </div>
         </div>
       </div>
     </div>

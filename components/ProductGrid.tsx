@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import ProductCard from './ProductCard'
-import type { Product } from '@/lib/products'
+import type { Product } from '@/data/products'
 
 type Props = {
   products: Product[]
@@ -36,7 +36,7 @@ export default function ProductGrid({ products, title, subtitle, showViewAll }: 
               href="/shop"
               className="inline-flex items-center gap-2 border border-matcha-300 text-matcha-700 px-8 py-3 rounded-full text-sm font-medium hover:bg-matcha-50 transition-colors"
             >
-              View All Products
+              ดูสินค้าทั้งหมด
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
